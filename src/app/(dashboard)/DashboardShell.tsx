@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
-import { supabase } from "@/src/lib/supabase/client";
+import { usePathname } from "next/navigation";
 
 interface Props {
   children: React.ReactNode;
@@ -12,7 +11,6 @@ interface Props {
 
 export default function DashboardShell({ children, userEmail }: Props) {
   const pathname = usePathname();
-  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navItems = [
@@ -21,9 +19,11 @@ export default function DashboardShell({ children, userEmail }: Props) {
   ];
 
   async function handleLogout() {
-    await supabase.auth.signOut();
-    router.push("/login");
-    router.refresh();
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+    window.location.href = "/login";
   }
 
   const pageTitle = pathname === "/dashboard" ? "Dashboard" : "Enquiries";

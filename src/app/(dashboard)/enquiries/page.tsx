@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/src/lib/supabase/client";
 import PageContainer from "@/src/components/layout/PageContainer";
 import PageHeader from "@/src/components/layout/PageHeader";
 import { AdminTable, type AdminTableColumn } from "@/src/components/admin-table/AdminTable";
@@ -75,20 +74,14 @@ export default function EnquiriesPage() {
   }, [enquiries, searchQuery, statusFilter]);
 
   async function fetchEnquiries() {
-    const { data, error } = await supabase
-      .from("enquiries")
-      .select("*")
-      .order("created_at", { ascending: false });
-    if (!error) setEnquiries(data ?? []);
+    const res = await fetch("/api/enquiries", { credentials: "include" });
+    if (!res.ok) return;
+    const data = await res.json();
+    setEnquiries(Array.isArray(data) ? data : []);
   }
 
   useEffect(() => {
     async function init() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setLoading(false);
-        return;
-      }
       await fetchEnquiries();
       setLoading(false);
     }
@@ -138,21 +131,21 @@ export default function EnquiriesPage() {
     setFormError(null);
     setSubmitLoading(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setFormError("Not signed in.");
-        return;
-      }
-      const { error: insertError } = await supabase.from("enquiries").insert({
-        car_model: form.car_model.trim() || null,
-        part_name: form.part_name.trim() || null,
-        customer_name: form.customer_name.trim() || null,
-        customer_phone: form.customer_phone.trim() || null,
-        notes: form.notes.trim() || null,
-        status: "new",
+      const res = await fetch("/api/enquiries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          car_model: form.car_model.trim() || null,
+          part_name: form.part_name.trim() || null,
+          customer_name: form.customer_name.trim() || null,
+          customer_phone: form.customer_phone.trim() || null,
+          notes: form.notes.trim() || null,
+        }),
       });
-      if (insertError) {
-        setFormError(insertError.message);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setFormError(data.error ?? "Failed to create enquiry.");
         return;
       }
       setModalOpen(false);
@@ -167,7 +160,12 @@ export default function EnquiriesPage() {
     setEnquiries((prev) =>
       prev.map((e) => (e.id === id ? { ...e, status: newStatus } : e))
     );
-    await supabase.from("enquiries").update({ status: newStatus }).eq("id", id);
+    await fetch(`/api/enquiries/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ status: newStatus }),
+    });
   }
 
   function startEditingPrice(row: Enquiry) {
@@ -184,7 +182,12 @@ export default function EnquiriesPage() {
     setEnquiries((prev) =>
       prev.map((e) => (e.id === id ? { ...e, price: value } : e))
     );
-    await supabase.from("enquiries").update({ price: value }).eq("id", id);
+    await fetch(`/api/enquiries/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ price: value }),
+    });
   }
 
   function startEditingCostPrice(row: Enquiry) {
@@ -201,7 +204,12 @@ export default function EnquiriesPage() {
     setEnquiries((prev) =>
       prev.map((e) => (e.id === id ? { ...e, cost_price: value } : e))
     );
-    await supabase.from("enquiries").update({ cost_price: value }).eq("id", id);
+    await fetch(`/api/enquiries/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ cost_price: value }),
+    });
   }
 
   const tableData: EnquiryRow[] = useMemo(
