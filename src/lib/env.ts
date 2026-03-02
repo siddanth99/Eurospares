@@ -1,12 +1,17 @@
-function getEnv(name: string): string {
-  const value = process.env[name];
-  if (value === undefined || value === "") {
+function assertEnv(value: string | undefined, name: string): string {
+  if (!value) {
     throw new Error(`Missing environment variable: ${name}`);
   }
   return value;
 }
 
 export const env = {
-  SUPABASE_URL: getEnv("NEXT_PUBLIC_SUPABASE_URL"),
-  SUPABASE_ANON_KEY: getEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY"),
+  SUPABASE_URL: assertEnv(
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    "NEXT_PUBLIC_SUPABASE_URL"
+  ),
+  SUPABASE_ANON_KEY: assertEnv(
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  ),
 };
