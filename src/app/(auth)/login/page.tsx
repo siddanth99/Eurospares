@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { supabase } from "@/src/lib/supabase/client";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -25,8 +23,11 @@ export default function LoginPage() {
         setError(err.message);
         return;
       }
-      router.push("/dashboard");
-      router.refresh();
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+      window.location.href = "/dashboard";
     } finally {
       setLoading(false);
     }

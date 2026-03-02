@@ -15,7 +15,6 @@ type Enquiry = {
   status: string | null;
   price: number | null;
   cost_price: number | null;
-  assigned_to: string | null;
   created_at: string;
 };
 
@@ -146,7 +145,7 @@ const enquiries = (data ?? []) as Enquiry[];
     <PageContainer>
       <PageHeader
         title="Dashboard"
-        description="Business intelligence and key metrics for your shop."
+        description="Business intelligence and key metrics."
       />
 
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
