@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -12,21 +12,37 @@ interface Props {
 export default function DashboardShell({ children, userEmail }: Props) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
 
   const navItems = [
     { name: "Dashboard", href: "/dashboard" },
     { name: "Enquiries", href: "/enquiries" },
+    { name: "Analytics", href: "/analytics" },
   ];
 
-  async function handleLogout() {
+  const handleLogout = useCallback(async () => {
     await fetch("/api/logout", {
       method: "POST",
       credentials: "include",
     });
     window.location.href = "/login";
-  }
+  }, []);
 
-  const pageTitle = pathname === "/dashboard" ? "Dashboard" : "Enquiries";
+  useEffect(() => {
+    if (!showLogoutModal) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setShowLogoutModal(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showLogoutModal]);
+
+  const pageTitle =
+    pathname === "/dashboard"
+      ? "Dashboard"
+      : pathname === "/analytics"
+        ? "Analytics"
+        : "Enquiries";
 
   return (
     <div className="min-h-screen flex bg-slate-50">
@@ -79,7 +95,10 @@ export default function DashboardShell({ children, userEmail }: Props) {
                 />
               </svg>
             </button>
-            <h2 className="text-lg font-semibold text-slate-900">{pageTitle}</h2>
+            <span className="md:hidden font-semibold text-lg text-slate-900">
+              EuroSpares
+            </span>
+            <h2 className="hidden md:block text-lg font-semibold text-slate-900">{pageTitle}</h2>
           </div>
           <div className="flex items-center gap-4">
             {userEmail && (
@@ -87,7 +106,7 @@ export default function DashboardShell({ children, userEmail }: Props) {
             )}
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={() => setShowLogoutModal(true)}
               className="rounded-md px-3 py-1.5 text-sm bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors md:block hidden"
             >
               Log out
@@ -118,12 +137,53 @@ export default function DashboardShell({ children, userEmail }: Props) {
               type="button"
               onClick={() => {
                 setMobileOpen(false);
-                handleLogout();
+                setShowLogoutModal(true);
               }}
               className="w-full text-left rounded-md px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors"
             >
               Log out
             </button>
+          </div>
+        )}
+
+        {showLogoutModal && (
+          <div
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50"
+            onClick={() => setShowLogoutModal(false)}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="logout-modal-title"
+          >
+            <div
+              className="bg-white rounded-xl shadow-lg border border-slate-200 w-full max-w-sm p-6 space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h2 id="logout-modal-title" className="text-lg font-semibold text-slate-900">
+                Confirm Logout
+              </h2>
+              <p className="text-sm text-slate-600">
+                Are you sure you want to log out?
+              </p>
+              <div className="flex gap-3 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowLogoutModal(false)}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowLogoutModal(false);
+                    handleLogout();
+                  }}
+                  className="rounded-md px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                >
+                  Log out
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
