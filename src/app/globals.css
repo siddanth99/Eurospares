@@ -1,0 +1,639 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Prevent horizontal overflow on mobile */
+html, body {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+
+/* Add source paths for landing components */
+@source "../components/**/*.{ts,tsx}";
+
+:root {
+  /* Light Theme */
+  --background: 220 20% 98%;
+  --foreground: 220 40% 10%;
+  
+  --card: 0 0% 100%;
+  --card-foreground: 220 40% 10%;
+  
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 40% 10%;
+  
+  --primary: 243 75% 59%;
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 220 20% 96%;
+  --secondary-foreground: 220 40% 20%;
+  
+  --muted: 220 15% 91%;
+  --muted-foreground: 220 10% 46%;
+  
+  --accent: 187 94% 43%;
+  --accent-foreground: 0 0% 100%;
+  
+  --highlight: 43 96% 56%;
+  --highlight-foreground: 220 40% 10%;
+  
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  
+  --border: 220 20% 88%;
+  --input: 220 20% 88%;
+  --ring: 243 75% 59%;
+  
+  --radius: 0.75rem;
+  
+  /* Glass effect */
+  --glass-bg: 0 0% 100% / 0.7;
+  --glass-border: 220 20% 90% / 0.5;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 hsl(220 40% 10% / 0.05);
+  --shadow-md: 0 4px 6px -1px hsl(220 40% 10% / 0.1), 0 2px 4px -2px hsl(220 40% 10% / 0.1);
+  --shadow-lg: 0 10px 15px -3px hsl(220 40% 10% / 0.1), 0 4px 6px -4px hsl(220 40% 10% / 0.1);
+  --shadow-glow: 0 0 40px hsl(243 75% 59% / 0.15);
+  
+  /* Sidebar */
+  --sidebar-background: 0 0% 98%;
+  --sidebar-foreground: 240 5.3% 26.1%;
+  --sidebar-primary: 240 5.9% 10%;
+  --sidebar-primary-foreground: 0 0% 98%;
+  --sidebar-accent: 240 4.8% 95.9%;
+  --sidebar-accent-foreground: 240 5.9% 10%;
+  --sidebar-border: 220 13% 91%;
+  --sidebar-ring: 217.2 91.2% 59.8%;
+}
+
+.dark {
+  /* Dark Theme */
+  --background: 222 47% 7%;
+  --foreground: 220 20% 96%;
+  
+  --card: 222 40% 10%;
+  --card-foreground: 220 20% 96%;
+  
+  --popover: 222 40% 10%;
+  --popover-foreground: 220 20% 96%;
+  
+  --primary: 243 75% 65%;
+  --primary-foreground: 0 0% 100%;
+  
+  --secondary: 222 30% 15%;
+  --secondary-foreground: 220 20% 90%;
+  
+  --muted: 222 30% 18%;
+  --muted-foreground: 220 15% 60%;
+  
+  --accent: 187 94% 50%;
+  --accent-foreground: 222 47% 7%;
+  
+  --highlight: 43 96% 56%;
+  --highlight-foreground: 222 47% 7%;
+  
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 100%;
+  
+  --border: 222 30% 20%;
+  --input: 222 30% 20%;
+  --ring: 243 75% 65%;
+  
+  /* Glass effect - darker */
+  --glass-bg: 222 40% 12% / 0.8;
+  --glass-border: 222 30% 25% / 0.5;
+  
+  /* Shadows */
+  --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.3);
+  --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.4), 0 2px 4px -2px hsl(0 0% 0% / 0.3);
+  --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.5), 0 4px 6px -4px hsl(0 0% 0% / 0.4);
+  --shadow-glow: 0 0 60px hsl(243 75% 65% / 0.2);
+  
+  /* Sidebar */
+  --sidebar-background: 222 47% 8%;
+  --sidebar-foreground: 220 20% 90%;
+  --sidebar-primary: 243 75% 65%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 222 30% 15%;
+  --sidebar-accent-foreground: 220 20% 90%;
+  --sidebar-border: 222 30% 20%;
+  --sidebar-ring: 243 75% 65%;
+}
+
+@theme inline {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-highlight: hsl(var(--highlight));
+  --color-highlight-foreground: hsl(var(--highlight-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+  --font-sans: var(--font-inter), var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono);
+  
+  /* Animation */
+  --animate-fade-in: fade-in 0.3s ease-out;
+  --animate-fade-up: fade-up 0.6s ease-out forwards;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-pin: pulse-pin 2s ease-in-out infinite;
+  
+  /* Shadows */
+  --shadow-glow: 0 0 40px hsl(243 75% 59% / 0.15);
+  --shadow-glow-lg: 0 0 60px hsl(243 75% 59% / 0.25);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    box-sizing: border-box;
+  }
+
+  html {
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    overflow-x: hidden;
+    max-width: 100vw;
+  }
+}
+
+@layer components {
+  /* Glass Card Effect */
+  .glass-card {
+    @apply bg-card/70 backdrop-blur-xl border border-border/50 rounded-2xl;
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .dark .glass-card {
+    @apply bg-card/60 border-border/30;
+  }
+  
+  /* Gradient Text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent;
+    background-size: 200% auto;
+  }
+  
+  /* Hero Float Animation */
+  .float-animation {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .float-animation-delayed {
+    animation: float 6s ease-in-out infinite;
+    animation-delay: -3s;
+  }
+  
+  /* Pulse Animation for Map Pin */
+  .pulse-pin {
+    animation: pulse-pin 2s ease-in-out infinite;
+  }
+  
+  /* Fade Up on Scroll */
+  .fade-up {
+    animation: fade-up 0.6s ease-out forwards;
+    opacity: 0;
+  }
+  
+  .fade-up-delay-1 { animation-delay: 0.1s; }
+  .fade-up-delay-2 { animation-delay: 0.2s; }
+  .fade-up-delay-3 { animation-delay: 0.3s; }
+  .fade-up-delay-4 { animation-delay: 0.4s; }
+  
+  /* Card Hover Effect */
+  .card-hover {
+    @apply transition-all duration-300;
+  }
+  
+  .card-hover:hover {
+    @apply -translate-y-1;
+    box-shadow: var(--shadow-glow);
+  }
+  
+  /* Category Tile Gradient */
+  .category-gradient {
+    @apply bg-gradient-to-br;
+  }
+  
+  /* Hero gradient background */
+  .bg-hero-gradient {
+    @apply bg-gradient-to-b from-background via-background to-secondary/20;
+  }
+  
+  /* Radial gradient */
+  .bg-gradient-radial {
+    background: radial-gradient(circle, var(--tw-gradient-stops));
+  }
+  
+  /* Shadow utilities */
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+  
+  .shadow-glow-lg {
+    box-shadow: var(--shadow-glow-lg);
+  }
+  
+  /* Respect reduced motion */
+  @media (prefers-reduced-motion: reduce) {
+    .float-animation,
+    .float-animation-delayed,
+    .pulse-pin,
+    .fade-up {
+      animation: none;
+      opacity: 1;
+      transform: none;
+    }
+    
+    .card-hover:hover {
+      transform: none;
+    }
+  }
+}
+
+@layer utilities {
+  /* Custom scrollbar */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+  
+  /* Line clamp */
+  .line-clamp-2 {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+@keyframes pulse-pin {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes slide-out-to-right {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+.animate-slide-in-from-right {
+  animation: slide-in-from-right 0.25s ease-out;
+}
+
+.animate-slide-out-to-right {
+  animation: slide-out-to-right 0.25s ease-out;
+}
+
+/* MIGRATION: browse-v2 utility styles — review and adjust tokens */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+@layer utilities {
+  .animate-shimmer {
+    animation: shimmer 2s linear infinite;
+  }
+}
+
+@keyframes fadeIn {
+  from { 
+    opacity: 0; 
+    transform: translateY(4px); 
+  }
+  to { 
+    opacity: 1; 
+    transform: translateY(0); 
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out;
+}
+
+/* --- Popup V2 styling for Leaflet popups --- */
+/* Hide the default white wrapper background and drop the big border
+   for popup elements that use the "leaflet-custom-popup" className. */
+.leaflet-container .leaflet-popup.leaflet-custom-popup .leaflet-popup-content-wrapper {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Hide default popup tip (arrow) for custom popups */
+.leaflet-container .leaflet-popup.leaflet-custom-popup .leaflet-popup-tip {
+  display: none !important;
+}
+
+/* Remove default close button area (we use our own) */
+.leaflet-container .leaflet-popup.leaflet-custom-popup .leaflet-popup-close-button {
+  display: none !important;
+}
+
+/* Our popup card (glass style) */
+.map-popup-card {
+  min-width: 220px;
+  max-width: 260px;
+  border-radius: 12px;
+  overflow: visible;
+  /* glass background with theme awareness */
+  background: rgba(255,255,255,0.06); /* fallback */
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 10px 30px rgba(2,6,23,0.6);
+  border: 1px solid rgba(255,255,255,0.04);
+  padding: 12px;
+  color: var(--foreground, #e6eef8);
+  position: relative;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+}
+
+/* small close X in top-right of the card */
+.map-popup-close {
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  border: none;
+  background: transparent;
+  color: rgba(255,255,255,0.8);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+}
+
+.map-popup-close:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+/* Content layout */
+.map-popup-title {
+  font-weight: 700;
+  font-size: 16px;
+  margin-bottom: 6px;
+  color: var(--foreground, #fff);
+  line-height: 1.1;
+}
+
+.map-popup-category {
+  display: inline-block;
+  background: rgba(99, 102, 241, 0.12); /* purple tint */
+  color: #6d66ff;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+
+.map-popup-desc {
+  color: rgba(255,255,255,0.65);
+  font-size: 13px;
+  margin: 8px 0 12px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* footer: price + CTA */
+.map-popup-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+}
+
+.map-popup-price {
+  background: rgba(0,0,0,0.25);
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  color: #c7f0e2;
+  font-size: 13px;
+}
+
+.map-popup-cta {
+  background: linear-gradient(180deg,#6d66ff,#5a4df5);
+  border: none;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(90,77,245,0.18);
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.map-popup-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(90,77,245,0.22);
+}
+
+/* Fade & slight scale animation */
+@keyframes popupFadeScale {
+  from { opacity: 0; transform: translateY(-6px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.animate-fadeIn {
+  animation: popupFadeScale .18s ease-out both;
+}
+
+/* ensure popup content wrapper won't add padding to our card */
+.leaflet-popup-content {
+  padding: 0 !important;
+}
+
+/* small responsive tweak */
+@media (max-width: 640px) {
+  .map-popup-card { max-width: 220px; padding: 10px; }
+  .map-popup-title { font-size: 15px; }
+}
+
+/* Map-specific styles */
+@layer components {
+  /* Map popup styling */
+  .map-popup {
+    padding: 12px;
+    font-size: 14px;
+    min-width: 200px;
+  }
+
+  .leaflet-popup-content-wrapper {
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+
+  .leaflet-popup-content {
+    margin: 0;
+  }
+
+  .custom-popup .leaflet-popup-content-wrapper {
+    background: hsl(var(--card));
+    color: hsl(var(--foreground));
+    border: 1px solid hsl(var(--border));
+  }
+
+  /* Marker drop-in animation */
+  @keyframes marker-drop {
+    0% {
+      transform: translateY(-20px) scale(0.8);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+  }
+
+  .marker-drop-in {
+    animation: marker-drop 0.4s ease-out;
+  }
+
+  /* Map fade-in */
+  @keyframes map-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .animate-fade-in {
+    animation: map-fade-in 0.5s ease-out;
+  }
+}
+
+/* Fix popup background - remove ugly white borders */
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+}
+
+/* hero overlay soft + CTA helpers */
+.hero-overlay-soft {
+  background: linear-gradient(90deg, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.00) 45%, rgba(0,0,0,0.00) 100%);
+  pointer-events: none;
+}
+
+/* ensure primary CTA on hero keeps high contrast in dark mode */
+.hero-primary-cta {
+  z-index: 40;
+  position: relative;
+  background-color: theme('colors.indigo.600');
+  color: white;
+}
+
+/* Fix Leaflet map z-index so it doesn't overlay navbar/toasts */
+.leaflet-container,
+.leaflet-pane,
+.leaflet-map-pane,
+.leaflet-tile-pane,
+.leaflet-overlay-pane,
+.leaflet-shadow-pane,
+.leaflet-marker-pane,
+.leaflet-tooltip-pane,
+.leaflet-popup-pane {
+  z-index: 0 !important;
+}
+
+@keyframes pinEntrance {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
