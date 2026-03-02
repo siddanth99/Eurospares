@@ -18,17 +18,10 @@ type Enquiry = {
   status: string | null;
   price: number | null;
   cost_price: number | null;
-  assigned_to: string | null;
   created_at: string;
 };
 
 type EnquiryRow = Enquiry & { margin: number; marginPct: number | null };
-
-type ShopProfile = {
-  id: string;
-  full_name: string | null;
-  email?: string | null;
-};
 
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
@@ -58,15 +51,12 @@ export default function EnquiriesPage() {
     notes: "",
   });
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
-  const [editingAssignedToId, setEditingAssignedToId] = useState<string | null>(null);
   const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState("");
   const [editingCostPriceId, setEditingCostPriceId] = useState<string | null>(null);
   const [editingCostPriceValue, setEditingCostPriceValue] = useState("");
-  const [shopProfiles, setShopProfiles] = useState<ShopProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [assignedFilter, setAssignedFilter] = useState("");
 
   const filteredEnquiries = useMemo(() => {
     let list = enquiries;
@@ -81,11 +71,8 @@ export default function EnquiriesPage() {
     if (statusFilter) {
       list = list.filter((e) => e.status === statusFilter);
     }
-    if (assignedFilter) {
-      list = list.filter((e) => e.assigned_to === assignedFilter);
-    }
     return list;
-  }, [enquiries, searchQuery, statusFilter, assignedFilter]);
+  }, [enquiries, searchQuery, statusFilter]);
 
   async function fetchEnquiries() {
     const { data, error } = await supabase
@@ -101,18 +88,6 @@ export default function EnquiriesPage() {
       if (!user) {
         setLoading(false);
         return;
-      }
-      const { data: myProfile } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single();
-      if (myProfile?.shop_id) {
-        const { data: profiles } = await supabase
-          .from("profiles")
-          .select("id, full_name, email")
-          .eq("shop_id", myProfile.shop_id);
-        setShopProfiles(profiles ?? []);
       }
       await fetchEnquiries();
       setLoading(false);
@@ -168,22 +143,13 @@ export default function EnquiriesPage() {
         setFormError("Not signed in.");
         return;
       }
-      const { data: profile, error: profileError } = await supabase
-        .from("profiles")
-        .select("shop_id")
-        .eq("id", user.id)
-        .single();
-      if (profileError || !profile?.shop_id) {
-        setFormError("Could not load your shop.");
-        return;
-      }
       const { error: insertError } = await supabase.from("enquiries").insert({
-        shop_id: profile.shop_id,
         car_model: form.car_model.trim() || null,
         part_name: form.part_name.trim() || null,
         customer_name: form.customer_name.trim() || null,
         customer_phone: form.customer_phone.trim() || null,
         notes: form.notes.trim() || null,
+        status: "new",
       });
       if (insertError) {
         setFormError(insertError.message);
@@ -202,21 +168,6 @@ export default function EnquiriesPage() {
       prev.map((e) => (e.id === id ? { ...e, status: newStatus } : e))
     );
     await supabase.from("enquiries").update({ status: newStatus }).eq("id", id);
-  }
-
-  function getAssignedName(assignedToId: string | null): string {
-    if (!assignedToId) return "—";
-    const p = shopProfiles.find((x) => x.id === assignedToId);
-    return p?.full_name?.trim() || p?.email || "—";
-  }
-
-  async function handleAssignedChange(id: string, assignedToId: string | null) {
-    setEditingAssignedToId(null);
-    const value = assignedToId || null;
-    setEnquiries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, assigned_to: value } : e))
-    );
-    await supabase.from("enquiries").update({ assigned_to: value }).eq("id", id);
   }
 
   function startEditingPrice(row: Enquiry) {
@@ -312,38 +263,6 @@ export default function EnquiriesPage() {
           ),
       },
       {
-        header: "Assigned To",
-        accessor: "assigned_to",
-        cell: (row) =>
-          editingAssignedToId === row.id ? (
-            <select
-              value={row.assigned_to ?? ""}
-              onChange={(e) => {
-                const v = e.target.value || null;
-                handleAssignedChange(row.id, v);
-              }}
-              onBlur={() => setEditingAssignedToId(null)}
-              autoFocus
-              className="text-xs rounded border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring py-1.5 px-2 min-w-[120px]"
-            >
-              <option value="">Unassigned</option>
-              {shopProfiles.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.full_name?.trim() || p.email || p.id}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setEditingAssignedToId(row.id)}
-              className="text-sm text-foreground hover:text-muted-foreground text-left"
-            >
-              {getAssignedName(row.assigned_to)}
-            </button>
-          ),
-      },
-      {
         header: "Price",
         accessor: "price",
         align: "right",
@@ -432,12 +351,10 @@ export default function EnquiriesPage() {
     ],
     [
       editingStatusId,
-      editingAssignedToId,
       editingPriceId,
       editingPriceValue,
       editingCostPriceId,
       editingCostPriceValue,
-      shopProfiles,
     ]
   );
 
@@ -599,18 +516,6 @@ export default function EnquiriesPage() {
             {STATUS_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
-              </option>
-            ))}
-          </select>
-          <select
-            value={assignedFilter}
-            onChange={(e) => setAssignedFilter(e.target.value)}
-            className="h-9 text-sm rounded-lg border border-input bg-background text-foreground px-3 min-w-[140px] focus:outline-none focus:ring-2 focus:ring-ring"
-          >
-            <option value="">All assigned</option>
-            {shopProfiles.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.full_name?.trim() || p.email || p.id}
               </option>
             ))}
           </select>
