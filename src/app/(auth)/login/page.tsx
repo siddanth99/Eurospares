@@ -28,6 +28,12 @@ export default function LoginPage() {
         await new Promise((resolve) => setTimeout(resolve, 200));
       }
       window.location.href = "/dashboard";
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Network error. Please check your connection and try again."
+      );
     } finally {
       setLoading(false);
     }
