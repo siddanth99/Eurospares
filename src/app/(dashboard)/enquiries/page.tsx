@@ -1,26 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import type { EnquiryPart, EnquiryWithParts } from "@/src/lib/types/enquiry";
 import PageContainer from "@/src/components/layout/PageContainer";
 import PageHeader from "@/src/components/layout/PageHeader";
-import { AdminTable, type AdminTableColumn } from "@/src/components/admin-table/AdminTable";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
-
-type Enquiry = {
-  id: string;
-  car_model: string | null;
-  part_name: string | null;
-  customer: string | null;
-  customer_name?: string | null;
-  status: string | null;
-  price: number | null;
-  cost_price: number | null;
-  created_at: string;
-};
-
-type EnquiryRow = Enquiry & { margin: number; marginPct: number | null };
 
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
@@ -36,26 +23,42 @@ function statusLabel(value: string | null): string {
   return STATUS_OPTIONS.find((o) => o.value === value)?.label ?? value;
 }
 
+type FormPart = {
+  id?: string;
+  part_name: string;
+  price: string;
+  cost_price: string;
+  supplier_available_date: string;
+};
+
 export default function EnquiriesPage() {
-  const [enquiries, setEnquiries] = useState<Enquiry[]>([]);
+  const [enquiries, setEnquiries] = useState<EnquiryWithParts[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [form, setForm] = useState({
     car_model: "",
-    part_name: "",
     customer_name: "",
     customer_phone: "",
     notes: "",
+    requested_date: "",
+    parts: [{ part_name: "", price: "", cost_price: "", supplier_available_date: "" }] as FormPart[],
   });
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
-  const [editingPriceId, setEditingPriceId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [editingPricePartId, setEditingPricePartId] = useState<string | null>(null);
   const [editingPriceValue, setEditingPriceValue] = useState("");
-  const [editingCostPriceId, setEditingCostPriceId] = useState<string | null>(null);
+  const [editingCostPricePartId, setEditingCostPricePartId] = useState<string | null>(null);
   const [editingCostPriceValue, setEditingCostPriceValue] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [editingEnquiry, setEditingEnquiry] = useState<EnquiryWithParts | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement | null>(null);
+  const menuPortalRef = useRef<HTMLDivElement | null>(null);
 
   const filteredEnquiries = useMemo(() => {
     let list = enquiries;
@@ -64,7 +67,7 @@ export default function EnquiriesPage() {
       list = list.filter(
         (e) =>
           (e.car_model?.toLowerCase().includes(q) ?? false) ||
-          (e.part_name?.toLowerCase().includes(q) ?? false)
+          (e.parts?.some((p) => p.part_name?.toLowerCase().includes(q)) ?? false)
       );
     }
     if (statusFilter) {
@@ -88,6 +91,77 @@ export default function EnquiriesPage() {
     init();
   }, []);
 
+  useEffect(() => {
+    if (openMenuId === null) return;
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (
+        (menuContainerRef.current?.contains(target)) ||
+        (menuPortalRef.current?.contains(target))
+      ) {
+        return;
+      }
+      setOpenMenuId(null);
+      setMenuPosition(null);
+    };
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [openMenuId]);
+
+  useEffect(() => {
+    if (!openMenuId) return;
+    const close = () => {
+      setOpenMenuId(null);
+      setMenuPosition(null);
+    };
+    window.addEventListener("scroll", close, true);
+    return () => window.removeEventListener("scroll", close, true);
+  }, [openMenuId]);
+
+  useEffect(() => {
+    if (deleteConfirmId === null) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDeleteConfirmId(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [deleteConfirmId]);
+
+  useEffect(() => {
+    if (!modalOpen || !editingEnquiry) return;
+    setFormError(null);
+    setForm({
+      car_model: editingEnquiry.car_model ?? "",
+      customer_name: editingEnquiry.customer_name ?? editingEnquiry.customer ?? "",
+      customer_phone: editingEnquiry.customer_phone ?? "",
+      notes: editingEnquiry.notes ?? "",
+      requested_date: editingEnquiry.requested_date
+        ? String(editingEnquiry.requested_date).slice(0, 10)
+        : "",
+      parts:
+        (editingEnquiry.parts ?? []).length > 0
+          ? (editingEnquiry.parts ?? []).map((p) => ({
+              id: p.id,
+              part_name: p.part_name ?? "",
+              price: p.price != null ? String(p.price) : "",
+              cost_price: p.cost_price != null ? String(p.cost_price) : "",
+              supplier_available_date: p.supplier_available_date
+                ? String(p.supplier_available_date).slice(0, 10)
+                : "",
+            }))
+          : [{ part_name: "", price: "", cost_price: "", supplier_available_date: "" }],
+    });
+  }, [modalOpen, editingEnquiry?.id]);
+
+  async function handleDeleteEnquiry(id: string) {
+    const res = await fetch(`/api/enquiries/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (res.ok) setEnquiries((prev) => prev.filter((e) => e.id !== id));
+    setDeleteConfirmId(null);
+  }
+
   function formatDate(iso: string) {
     return new Date(iso).toLocaleDateString("en-GB", {
       day: "2-digit",
@@ -101,29 +175,64 @@ export default function EnquiriesPage() {
     return "₹" + value.toLocaleString("en-IN");
   }
 
-  function getMargin(row: Enquiry) {
-    const price = row.price ?? 0;
-    const cost = row.cost_price ?? 0;
+  function getPartMargin(p: EnquiryPart) {
+    const price = p.price ?? 0;
+    const cost = p.cost_price ?? 0;
     return price - cost;
   }
 
-  function getMarginPercentage(row: Enquiry): number | null {
-    const price = row.price;
+  function getPartMarginPct(p: EnquiryPart): number | null {
+    const price = p.price;
     if (price == null || price === 0) return null;
-    const margin = getMargin(row);
-    return (margin / price) * 100;
+    return (getPartMargin(p) / price) * 100;
   }
 
   function openModal() {
-    setModalOpen(true);
+    setEditingEnquiry(null);
     setFormError(null);
     setForm({
       car_model: "",
-      part_name: "",
       customer_name: "",
       customer_phone: "",
       notes: "",
+      requested_date: "",
+      parts: [{ part_name: "", price: "", cost_price: "", supplier_available_date: "" }],
     });
+    setModalOpen(true);
+  }
+
+  function addPart() {
+    setForm((f) => ({
+      ...f,
+      parts: [
+        ...f.parts,
+        { part_name: "", price: "", cost_price: "", supplier_available_date: "" },
+      ],
+    }));
+  }
+
+  function removePart(index: number) {
+    if (form.parts.length <= 1) return;
+    setForm((f) => ({
+      ...f,
+      parts: f.parts.filter((_, i) => i !== index),
+    }));
+  }
+
+  function updatePart(index: number, field: keyof FormPart, value: string) {
+    setForm((f) => ({
+      ...f,
+      parts: f.parts.map((p, i) => (i === index ? { ...p, [field]: value } : p)),
+    }));
+  }
+
+  function parsePartNums(p: FormPart) {
+    return {
+      part_name: p.part_name.trim() || null,
+      price: p.price.trim() ? parseFloat(p.price.replace(/,/g, "")) : null,
+      cost_price: p.cost_price.trim() ? parseFloat(p.cost_price.replace(/,/g, "")) : null,
+      supplier_available_date: p.supplier_available_date.trim() || null,
+    };
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -131,24 +240,107 @@ export default function EnquiriesPage() {
     setFormError(null);
     setSubmitLoading(true);
     try {
-      const res = await fetch("/api/enquiries", {
-        method: "POST",
+      const partsWithName = form.parts.filter((p) => p.part_name.trim());
+      if (partsWithName.length === 0) {
+        setFormError("Add at least one part.");
+        return;
+      }
+
+      if (!editingEnquiry) {
+        const partsPayload = partsWithName.map((p) => parsePartNums(p));
+        const res = await fetch("/api/enquiries", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({
+            car_model: form.car_model.trim() || null,
+            customer_name: form.customer_name.trim() || null,
+            customer_phone: form.customer_phone.trim() || null,
+            notes: form.notes.trim() || null,
+            requested_date: form.requested_date.trim() || null,
+            parts: partsPayload,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          setFormError(data.error ?? "Failed to create enquiry.");
+          return;
+        }
+        setModalOpen(false);
+        setEditingEnquiry(null);
+        await fetchEnquiries();
+        return;
+      }
+
+      const enquiryId = editingEnquiry.id;
+      const patchRes = await fetch(`/api/enquiries/${enquiryId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
           car_model: form.car_model.trim() || null,
-          part_name: form.part_name.trim() || null,
           customer_name: form.customer_name.trim() || null,
           customer_phone: form.customer_phone.trim() || null,
           notes: form.notes.trim() || null,
+          requested_date: form.requested_date.trim() || null,
+          status: editingEnquiry.status,
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setFormError(data.error ?? "Failed to create enquiry.");
+      if (!patchRes.ok) {
+        const data = await patchRes.json().catch(() => ({}));
+        setFormError(data.error ?? "Failed to update enquiry.");
         return;
       }
+
+      const originalParts = editingEnquiry.parts ?? [];
+      const currentParts = form.parts.filter((p) => p.part_name.trim());
+      const currentIds = new Set(currentParts.map((p) => p.id).filter(Boolean) as string[]);
+
+      for (const p of currentParts) {
+        const payload = parsePartNums(p);
+        if (p.id) {
+          const r = await fetch(`/api/enquiries/${enquiryId}/parts/${p.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(payload),
+          });
+          if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            setFormError(data.error ?? "Failed to update part.");
+            return;
+          }
+        } else {
+          const r = await fetch(`/api/enquiries/${enquiryId}/parts`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify(payload),
+          });
+          if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            setFormError(data.error ?? "Failed to add part.");
+            return;
+          }
+        }
+      }
+
+      for (const p of originalParts) {
+        if (!currentIds.has(p.id)) {
+          const r = await fetch(`/api/enquiries/${enquiryId}/parts/${p.id}`, {
+            method: "DELETE",
+            credentials: "include",
+          });
+          if (!r.ok) {
+            const data = await r.json().catch(() => ({}));
+            setFormError(data.error ?? "Failed to remove part.");
+            return;
+          }
+        }
+      }
+
       setModalOpen(false);
+      setEditingEnquiry(null);
       await fetchEnquiries();
     } finally {
       setSubmitLoading(false);
@@ -168,21 +360,30 @@ export default function EnquiriesPage() {
     });
   }
 
-  function startEditingPrice(row: Enquiry) {
-    setEditingPriceId(row.id);
-    setEditingPriceValue(row.price != null ? String(row.price) : "");
+  function startEditingPartPrice(part: EnquiryPart) {
+    setEditingPricePartId(part.id);
+    setEditingPriceValue(part.price != null ? String(part.price) : "");
   }
 
-  async function submitPriceEdit(id: string) {
+  async function submitPartPriceEdit(enquiryId: string, partId: string) {
     const raw = editingPriceValue.trim();
     const num = raw === "" ? null : parseFloat(raw.replace(/,/g, ""));
     const value = num != null && !Number.isNaN(num) ? num : null;
-    setEditingPriceId(null);
+    setEditingPricePartId(null);
     setEditingPriceValue("");
     setEnquiries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, price: value } : e))
+      prev.map((e) =>
+        e.id === enquiryId
+          ? {
+              ...e,
+              parts: (e.parts ?? []).map((p) =>
+                p.id === partId ? { ...p, price: value } : p
+              ),
+            }
+          : e
+      )
     );
-    await fetch(`/api/enquiries/${id}`, {
+    await fetch(`/api/enquiries/${enquiryId}/parts/${partId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -190,21 +391,30 @@ export default function EnquiriesPage() {
     });
   }
 
-  function startEditingCostPrice(row: Enquiry) {
-    setEditingCostPriceId(row.id);
-    setEditingCostPriceValue(row.cost_price != null ? String(row.cost_price) : "");
+  function startEditingPartCostPrice(part: EnquiryPart) {
+    setEditingCostPricePartId(part.id);
+    setEditingCostPriceValue(part.cost_price != null ? String(part.cost_price) : "");
   }
 
-  async function submitCostPriceEdit(id: string) {
+  async function submitPartCostPriceEdit(enquiryId: string, partId: string) {
     const raw = editingCostPriceValue.trim();
     const num = raw === "" ? null : parseFloat(raw.replace(/,/g, ""));
     const value = num != null && !Number.isNaN(num) ? num : null;
-    setEditingCostPriceId(null);
+    setEditingCostPricePartId(null);
     setEditingCostPriceValue("");
     setEnquiries((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, cost_price: value } : e))
+      prev.map((e) =>
+        e.id === enquiryId
+          ? {
+              ...e,
+              parts: (e.parts ?? []).map((p) =>
+                p.id === partId ? { ...p, cost_price: value } : p
+              ),
+            }
+          : e
+      )
     );
-    await fetch(`/api/enquiries/${id}`, {
+    await fetch(`/api/enquiries/${enquiryId}/parts/${partId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -212,159 +422,13 @@ export default function EnquiriesPage() {
     });
   }
 
-  const tableData: EnquiryRow[] = useMemo(
-    () =>
-      filteredEnquiries.map((e) => ({
-        ...e,
-        margin: getMargin(e),
-        marginPct: getMarginPercentage(e),
-      })),
-    [filteredEnquiries]
-  );
-
   function statusBadgeVariant(status: string | null): "default" | "secondary" | "outline" {
     if (status === "waiting_price") return "secondary";
     if (status === "confirmed") return "default";
     return "outline";
   }
 
-  const columns: AdminTableColumn<EnquiryRow>[] = useMemo(
-    () => [
-      { header: "Car Model", accessor: "car_model", cell: (row) => row.car_model ?? "—" },
-      { header: "Part Name", accessor: "part_name", cell: (row) => row.part_name ?? "—" },
-      {
-        header: "Customer",
-        accessor: "customer",
-        cell: (row) => row.customer_name ?? row.customer ?? "—",
-      },
-      {
-        header: "Status",
-        accessor: "status",
-        cell: (row) =>
-          editingStatusId === row.id ? (
-            <select
-              value={row.status ?? ""}
-              onChange={(e) => {
-                const v = e.target.value;
-                if (v) handleStatusChange(row.id, v);
-              }}
-              onBlur={() => setEditingStatusId(null)}
-              autoFocus
-              className="text-xs rounded border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring py-1.5 px-2 min-w-[120px]"
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setEditingStatusId(row.id)}
-              className="text-left"
-            >
-              <Badge variant={statusBadgeVariant(row.status)}>
-                {statusLabel(row.status)}
-              </Badge>
-            </button>
-          ),
-      },
-      {
-        header: "Price",
-        accessor: "price",
-        align: "right",
-        cell: (row) =>
-          editingPriceId === row.id ? (
-            <input
-              type="text"
-              inputMode="decimal"
-              value={editingPriceValue}
-              onChange={(e) => setEditingPriceValue(e.target.value)}
-              onBlur={() => submitPriceEdit(row.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              autoFocus
-              className="w-24 text-xs rounded border border-input bg-background text-foreground px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => startEditingPrice(row)}
-              className="text-sm text-foreground hover:text-muted-foreground text-right w-full"
-            >
-              {formatPrice(row.price)}
-            </button>
-          ),
-      },
-      {
-        header: "Cost Price",
-        accessor: "cost_price",
-        align: "right",
-        cell: (row) =>
-          editingCostPriceId === row.id ? (
-            <input
-              type="text"
-              inputMode="decimal"
-              value={editingCostPriceValue}
-              onChange={(e) => setEditingCostPriceValue(e.target.value)}
-              onBlur={() => submitCostPriceEdit(row.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              autoFocus
-              className="w-24 text-xs rounded border border-input bg-background text-foreground px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-            />
-          ) : (
-            <button
-              type="button"
-              onClick={() => startEditingCostPrice(row)}
-              className="text-sm text-foreground hover:text-muted-foreground text-right w-full"
-            >
-              {formatPrice(row.cost_price)}
-            </button>
-          ),
-      },
-      {
-        header: "Margin",
-        accessor: "margin",
-        align: "right",
-        cell: (row) => formatPrice(row.margin),
-      },
-      {
-        header: "Margin %",
-        accessor: "marginPct",
-        align: "right",
-        cell: (row) => {
-          const pct = row.marginPct;
-          return pct != null ? `${pct.toFixed(1)}%` : "—";
-        },
-      },
-      {
-        header: "Created At",
-        accessor: "created_at",
-        cell: (row) => formatDate(row.created_at),
-      },
-      {
-        header: "Actions",
-        accessor: "id",
-        align: "right",
-        cell: () => (
-          <Button variant="ghost" size="sm" type="button">
-            —
-          </Button>
-        ),
-      },
-    ],
-    [
-      editingStatusId,
-      editingPriceId,
-      editingPriceValue,
-      editingCostPriceId,
-      editingCostPriceValue,
-    ]
-  );
+  const totalPartsCount = (e: EnquiryWithParts) => (e.parts ?? []).length;
 
   return (
     <PageContainer>
@@ -381,107 +445,134 @@ export default function EnquiriesPage() {
       {modalOpen && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
-          onClick={() => !submitLoading && setModalOpen(false)}
+          onClick={() => {
+            if (!submitLoading) {
+              setModalOpen(false);
+              setEditingEnquiry(null);
+            }
+          }}
         >
           <div
-            className="w-full max-w-md rounded-xl border border-border bg-card p-6"
+            className="w-full max-w-lg rounded-xl border border-border bg-card p-6 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <h2 className="text-lg font-semibold text-foreground mb-4">
-              New Enquiry
+              {editingEnquiry ? "Edit Enquiry" : "New Enquiry"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label
-                  htmlFor="car_model"
-                  className="block text-xs font-medium text-foreground mb-1.5"
-                >
+                <label className="block text-xs font-medium text-foreground mb-1.5">
                   Car Model <span className="text-destructive">*</span>
                 </label>
                 <input
-                  id="car_model"
                   type="text"
                   value={form.car_model}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, car_model: e.target.value }))
-                  }
+                  onChange={(e) => setForm((f) => ({ ...f, car_model: e.target.value }))}
                   required
-                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground"
                   placeholder="e.g. BMW 3 Series"
                 />
               </div>
               <div>
-                <label
-                  htmlFor="part_name"
-                  className="block text-xs font-medium text-foreground mb-1.5"
-                >
-                  Part Name <span className="text-destructive">*</span>
+                <label className="block text-xs font-medium text-foreground mb-1.5">
+                  Requested date
                 </label>
                 <input
-                  id="part_name"
-                  type="text"
-                  value={form.part_name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, part_name: e.target.value }))
-                  }
-                  required
-                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-                  placeholder="e.g. Brake pads"
+                  type="date"
+                  value={form.requested_date}
+                  onChange={(e) => setForm((f) => ({ ...f, requested_date: e.target.value }))}
+                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground"
                 />
               </div>
               <div>
-                <label
-                  htmlFor="customer_name"
-                  className="block text-xs font-medium text-foreground mb-1.5"
-                >
-                  Customer Name
-                </label>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Customer Name</label>
                 <input
-                  id="customer_name"
                   type="text"
                   value={form.customer_name}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, customer_name: e.target.value }))
-                  }
-                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  onChange={(e) => setForm((f) => ({ ...f, customer_name: e.target.value }))}
+                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground"
                   placeholder="John Smith"
                 />
               </div>
               <div>
-                <label
-                  htmlFor="customer_phone"
-                  className="block text-xs font-medium text-foreground mb-1.5"
-                >
-                  Customer Phone
-                </label>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Customer Phone</label>
                 <input
-                  id="customer_phone"
                   type="tel"
                   value={form.customer_phone}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, customer_phone: e.target.value }))
-                  }
-                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                  onChange={(e) => setForm((f) => ({ ...f, customer_phone: e.target.value }))}
+                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground"
                   placeholder="+44 7700 900000"
                 />
               </div>
               <div>
-                <label
-                  htmlFor="notes"
-                  className="block text-xs font-medium text-foreground mb-1.5"
-                >
-                  Notes
-                </label>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Notes</label>
                 <textarea
-                  id="notes"
                   value={form.notes}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, notes: e.target.value }))
-                  }
-                  rows={3}
-                  className="w-full px-3 py-2 text-sm rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
-                  placeholder="Optional notes"
+                  onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+                  rows={2}
+                  className="w-full px-3 py-2 text-sm rounded-lg border border-input bg-background text-foreground resize-none"
+                  placeholder="Optional"
                 />
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-medium text-foreground">Parts</label>
+                  <Button type="button" variant="outline" size="sm" onClick={addPart}>
+                    + Part
+                  </Button>
+                </div>
+                <div className="space-y-3">
+                  {form.parts.map((part, index) => (
+                    <div key={index} className="p-3 rounded-lg border border-border space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs text-muted-foreground">Part {index + 1}</span>
+                        {form.parts.length > 1 && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="text-destructive h-8"
+                            onClick={() => removePart(index)}
+                          >
+                            Remove
+                          </Button>
+                        )}
+                      </div>
+                      <input
+                        type="text"
+                        value={part.part_name}
+                        onChange={(e) => updatePart(index, "part_name", e.target.value)}
+                        placeholder="Part name"
+                        className="w-full h-9 px-2 text-sm rounded border border-input bg-background text-foreground"
+                      />
+                      <input
+                        type="date"
+                        value={part.supplier_available_date}
+                        onChange={(e) => updatePart(index, "supplier_available_date", e.target.value)}
+                        placeholder="Supplier date"
+                        className="w-full h-9 px-2 text-sm rounded border border-input bg-background text-foreground"
+                      />
+                      <div className="grid grid-cols-2 gap-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={part.price}
+                          onChange={(e) => updatePart(index, "price", e.target.value)}
+                          placeholder="Price"
+                          className="h-9 px-2 text-sm rounded border border-input bg-background text-foreground"
+                        />
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={part.cost_price}
+                          onChange={(e) => updatePart(index, "cost_price", e.target.value)}
+                          placeholder="Cost"
+                          className="h-9 px-2 text-sm rounded border border-input bg-background text-foreground"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
               {formError && (
                 <p className="text-sm text-destructive bg-destructive/10 rounded-lg px-3 py-2">
@@ -492,16 +583,59 @@ export default function EnquiriesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => !submitLoading && setModalOpen(false)}
+                  onClick={() => {
+                    if (!submitLoading) {
+                      setModalOpen(false);
+                      setEditingEnquiry(null);
+                    }
+                  }}
                   className="flex-1"
                 >
                   Cancel
                 </Button>
                 <Button type="submit" disabled={submitLoading} className="flex-1">
-                  {submitLoading ? "Saving…" : "Create"}
+                  {submitLoading
+                    ? "Saving…"
+                    : editingEnquiry
+                      ? "Save Changes"
+                      : "Create"}
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {deleteConfirmId && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          onClick={() => setDeleteConfirmId(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-modal-title"
+        >
+          <div
+            className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 shadow-lg"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="delete-modal-title" className="text-lg font-semibold text-slate-900 mb-2">
+              Delete Enquiry
+            </h2>
+            <p className="text-sm text-slate-600 mb-6">
+              Are you sure you want to delete this enquiry? This action cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <Button type="button" variant="outline" onClick={() => setDeleteConfirmId(null)}>
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                className="bg-red-600 hover:bg-red-700 text-white"
+                onClick={() => handleDeleteEnquiry(deleteConfirmId)}
+              >
+                Delete
+              </Button>
+            </div>
           </div>
         </div>
       )}
@@ -535,15 +669,233 @@ export default function EnquiriesPage() {
           <p className="text-sm text-muted-foreground">Loading…</p>
         </div>
       ) : enquiries.length === 0 ? (
-        <AdminTable columns={columns} data={[]} />
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="px-4 py-12 text-center text-sm text-muted-foreground">
+            No records found.
+          </div>
+        </div>
       ) : filteredEnquiries.length === 0 ? (
         <div className="rounded-lg border border-border bg-card p-12 text-center">
-          <p className="text-sm text-muted-foreground">
-            No enquiries match your filters.
-          </p>
+          <p className="text-sm text-muted-foreground">No enquiries match your filters.</p>
         </div>
       ) : (
-        <AdminTable columns={columns} data={tableData} />
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border bg-muted/30">
+                <th className="w-8 px-2 py-3 text-left"></th>
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-left">Car Model</th>
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-left">Customer</th>
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-left">Status</th>
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-left">Parts</th>
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-left">Requested</th>
+                <th className="px-4 py-3 text-xs font-medium uppercase tracking-wide text-muted-foreground text-left">Created</th>
+                <th className="px-4 py-3 text-right text-xs font-medium uppercase tracking-wide text-muted-foreground">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredEnquiries.map((row) => (
+                <React.Fragment key={row.id}>
+                  <tr
+                    key={row.id}
+                    className="border-b border-border transition-colors hover:bg-muted/40"
+                  >
+                    <td className="px-2 py-2">
+                      <button
+                        type="button"
+                        onClick={() => setExpandedId((id) => (id === row.id ? null : row.id))}
+                        className="p-1 rounded text-muted-foreground hover:bg-muted"
+                        aria-expanded={expandedId === row.id}
+                      >
+                        <span
+                          className={`inline-block transition-transform ${expandedId === row.id ? "rotate-90" : ""}`}
+                        >
+                          ▶
+                        </span>
+                      </button>
+                    </td>
+                    <td className="px-4 py-3 text-left">{row.car_model ?? "—"}</td>
+                    <td className="px-4 py-3 text-left">{row.customer_name ?? row.customer ?? "—"}</td>
+                    <td className="px-4 py-3 text-left">
+                      {editingStatusId === row.id ? (
+                        <select
+                          value={row.status ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            if (v) handleStatusChange(row.id, v);
+                          }}
+                          onBlur={() => setEditingStatusId(null)}
+                          autoFocus
+                          className="text-xs rounded border border-input bg-background py-1.5 px-2 min-w-[120px]"
+                        >
+                          {STATUS_OPTIONS.map((o) => (
+                            <option key={o.value} value={o.value}>{o.label}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <button type="button" onClick={() => setEditingStatusId(row.id)} className="text-left">
+                          <Badge variant={statusBadgeVariant(row.status)}>{statusLabel(row.status)}</Badge>
+                        </button>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-left">{totalPartsCount(row)}</td>
+                    <td className="px-4 py-3 text-left">
+                      {row.requested_date
+                        ? formatDate(row.requested_date)
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-left">{formatDate(row.created_at)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <div ref={openMenuId === row.id ? menuContainerRef : undefined}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            if (openMenuId === row.id) {
+                              setOpenMenuId(null);
+                              setMenuPosition(null);
+                              return;
+                            }
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            setMenuPosition({
+                              top: rect.bottom + window.scrollY,
+                              left: rect.right - 128 + window.scrollX,
+                            });
+                            setOpenMenuId(row.id);
+                          }}
+                          className="p-1.5 rounded-md text-slate-600 hover:bg-slate-100"
+                          aria-label="Open actions menu"
+                          aria-expanded={openMenuId === row.id}
+                        >
+                          <span className="text-lg leading-none">⋯</span>
+                        </button>
+                        {openMenuId === row.id && menuPosition &&
+                          createPortal(
+                            <div
+                              ref={menuPortalRef}
+                              className="fixed z-[1000] w-32 rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
+                              style={{ top: menuPosition.top, left: menuPosition.left }}
+                              role="menu"
+                            >
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50"
+                                onClick={() => {
+                                  setEditingEnquiry(row);
+                                  setOpenMenuId(null);
+                                  setMenuPosition(null);
+                                  setModalOpen(true);
+                                }}
+                              >
+                                Edit
+                              </button>
+                              <button
+                                type="button"
+                                role="menuitem"
+                                className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                                onClick={() => {
+                                  setDeleteConfirmId(row.id);
+                                  setOpenMenuId(null);
+                                  setMenuPosition(null);
+                                }}
+                              >
+                                Delete
+                              </button>
+                            </div>,
+                            document.body
+                          )}
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedId === row.id && (row.parts ?? []).length > 0 && (
+                    <tr key={`${row.id}-parts`} className="bg-muted/20">
+                      <td colSpan={8} className="px-4 py-3">
+                        <div className="rounded border border-border bg-card overflow-hidden">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className="border-b border-border bg-muted/30">
+                                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Part Name</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Supplier date</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Price</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Cost</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Margin</th>
+                                <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Margin %</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {(row.parts ?? []).map((p) => (
+                                <tr key={p.id} className="border-b border-border last:border-b-0">
+                                  <td className="px-4 py-2">{p.part_name ?? "—"}</td>
+                                  <td className="px-4 py-2">
+                                    {p.supplier_available_date
+                                      ? formatDate(p.supplier_available_date)
+                                      : "—"}
+                                  </td>
+                                  <td className="px-4 py-2 text-right">
+                                    {editingPricePartId === p.id ? (
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={editingPriceValue}
+                                        onChange={(e) => setEditingPriceValue(e.target.value)}
+                                        onBlur={() => submitPartPriceEdit(row.id, p.id)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                        }}
+                                        autoFocus
+                                        className="w-24 text-xs rounded border border-input px-2 py-1"
+                                      />
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditingPartPrice(p)}
+                                        className="text-foreground hover:text-muted-foreground"
+                                      >
+                                        {formatPrice(p.price)}
+                                      </button>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2 text-right">
+                                    {editingCostPricePartId === p.id ? (
+                                      <input
+                                        type="text"
+                                        inputMode="decimal"
+                                        value={editingCostPriceValue}
+                                        onChange={(e) => setEditingCostPriceValue(e.target.value)}
+                                        onBlur={() => submitPartCostPriceEdit(row.id, p.id)}
+                                        onKeyDown={(e) => {
+                                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                                        }}
+                                        autoFocus
+                                        className="w-24 text-xs rounded border border-input px-2 py-1"
+                                      />
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        onClick={() => startEditingPartCostPrice(p)}
+                                        className="text-foreground hover:text-muted-foreground"
+                                      >
+                                        {formatPrice(p.cost_price)}
+                                      </button>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-2 text-right">{formatPrice(getPartMargin(p))}</td>
+                                  <td className="px-4 py-2 text-right">
+                                    {getPartMarginPct(p) != null ? `${getPartMarginPct(p)!.toFixed(1)}%` : "—"}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </PageContainer>
   );

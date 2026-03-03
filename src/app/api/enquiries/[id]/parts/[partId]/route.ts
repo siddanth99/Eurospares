@@ -4,9 +4,9 @@ import { createServerClientForRoute } from "@/src/lib/supabase/route-handler";
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; partId: string }> }
 ) {
-  const { id } = await params;
+  const { id: _enquiryId, partId } = await params;
   const { supabase, cookiesToSet } = await createServerClientForRoute(request);
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -15,40 +15,32 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const raw = body as Record<string, unknown>;
-  const allowedKeys = [
-    "car_model",
-    "customer_name",
-    "customer_phone",
-    "notes",
-    "requested_date",
-    "status",
-  ] as const;
-  const updates: Record<string, string | null> = {};
-  for (const key of allowedKeys) {
-    if (!(key in raw)) continue;
-    const v = raw[key];
-    if (v === null || v === undefined) {
-      updates[key] = null;
-      continue;
-    }
-    if (typeof v !== "string") {
-      return NextResponse.json(
-        { error: `Invalid type for ${key}: expected string or null` },
-        { status: 400 }
-      );
-    }
-    updates[key] = key === "status" && v === "" ? null : v;
-  }
+  const { part_name, price, cost_price, supplier_available_date } = body as {
+    part_name?: string | null;
+    price?: number | null;
+    cost_price?: number | null;
+    supplier_available_date?: string | null;
+  };
+
+  const updates: {
+    part_name?: string | null;
+    price?: number | null;
+    cost_price?: number | null;
+    supplier_available_date?: string | null;
+  } = {};
+  if (part_name !== undefined) updates.part_name = part_name ?? null;
+  if (price !== undefined) updates.price = price;
+  if (cost_price !== undefined) updates.cost_price = cost_price;
+  if (supplier_available_date !== undefined) updates.supplier_available_date = supplier_available_date ?? null;
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });
   }
 
   const { data, error } = await supabase
-    .from("enquiries")
+    .from("enquiry_parts")
     .update(updates)
-    .eq("id", id)
+    .eq("id", partId)
     .select()
     .single();
 
@@ -65,9 +57,9 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string; partId: string }> }
 ) {
-  const { id } = await params;
+  const { partId } = await params;
   const { supabase, cookiesToSet } = await createServerClientForRoute(request);
 
   const { data: { user } } = await supabase.auth.getUser();
@@ -75,7 +67,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { error } = await supabase.from("enquiries").delete().eq("id", id);
+  const { error } = await supabase
+    .from("enquiry_parts")
+    .delete()
+    .eq("id", partId);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

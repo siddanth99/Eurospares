@@ -5,18 +5,7 @@ import PageHeader from "@/src/components/layout/PageHeader";
 import { AdminTable, type AdminTableColumn } from "@/src/components/admin-table/AdminTable";
 import { Card } from "@/src/components/ui/card";
 import { Badge } from "@/src/components/ui/badge";
-
-type Enquiry = {
-  id: string;
-  car_model: string | null;
-  part_name: string | null;
-  customer: string | null;
-  customer_name?: string | null;
-  status: string | null;
-  price: number | null;
-  cost_price: number | null;
-  created_at: string;
-};
+import type { EnquiryWithParts } from "@/src/lib/types/enquiry";
 
 const STATUS_LABELS: Record<string, string> = {
   new: "New",
@@ -36,12 +25,16 @@ function statusBadgeVariant(
   status: string | null
 ): "default" | "secondary" | "outline" {
   if (status === "waiting_price") return "secondary";
-  if (status === "confirmed") return "default";
+  if (status === "confirmed" || status === "closed") return "default";
   return "outline";
 }
 
 function formatCurrency(value: number): string {
   return "₹" + value.toLocaleString("en-IN");
+}
+
+function enquiryTotalRevenue(e: EnquiryWithParts): number {
+  return (e.parts ?? []).reduce((sum, p) => sum + (p.price ?? 0), 0);
 }
 
 export default async function DashboardPage() {
@@ -55,24 +48,29 @@ export default async function DashboardPage() {
   }
 
   const { data } = await supabase
-  .from("enquiries")
-  .select("*")
-  .order("created_at", { ascending: false });
+    .from("enquiries")
+    .select("*, enquiry_parts(*)")
+    .order("created_at", { ascending: false });
 
-const enquiries = (data ?? []) as Enquiry[];
+  const raw = (data ?? []) as (Record<string, unknown> & { enquiry_parts?: unknown[] })[];
+  const enquiries: EnquiryWithParts[] = raw.map((row) => {
+    const { enquiry_parts, ...rest } = row;
+    return { ...rest, parts: enquiry_parts ?? [] } as EnquiryWithParts;
+  });
 
   const totalEnquiries = enquiries.length;
-  const confirmedEnquiries = enquiries.filter(
-    (e) => e.status === "confirmed"
+  const confirmedOrClosed = enquiries.filter((e) =>
+    e.status === "confirmed" || e.status === "closed"
   );
-  const totalConfirmed = confirmedEnquiries.length;
-
-  const totalRevenue = confirmedEnquiries.reduce(
-    (sum, e) => sum + (e.price ?? 0),
+  const totalConfirmed = enquiries.filter((e) => e.status === "confirmed").length;
+  const totalRevenue = confirmedOrClosed.reduce(
+    (sum, e) => sum + enquiryTotalRevenue(e),
     0
   );
-  const totalCost = confirmedEnquiries.reduce(
-    (sum, e) => sum + (e.cost_price ?? 0),
+  const totalCost = confirmedOrClosed.reduce(
+    (sum, e) =>
+      sum +
+      (e.parts ?? []).reduce((s, p) => s + (p.cost_price ?? 0), 0),
     0
   );
   const totalProfit = totalRevenue - totalCost;
@@ -94,9 +92,11 @@ const enquiries = (data ?? []) as Enquiry[];
     .slice(0, 5);
 
   const partCounts = new Map<string, number>();
-  for (const e of confirmedEnquiries) {
-    const key = e.part_name?.trim() || "—";
-    partCounts.set(key, (partCounts.get(key) ?? 0) + 1);
+  for (const e of confirmedOrClosed) {
+    for (const p of e.parts ?? []) {
+      const key = p.part_name?.trim() || "—";
+      partCounts.set(key, (partCounts.get(key) ?? 0) + 1);
+    }
   }
   const topParts = Array.from(partCounts.entries())
     .map(([name, count]) => ({ name, count }))
@@ -104,13 +104,17 @@ const enquiries = (data ?? []) as Enquiry[];
     .slice(0, 5);
 
   const recentEnquiries = enquiries.slice(0, 5);
+  type RecentRow = EnquiryWithParts & { totalRevenue: number };
+  const recentRows: RecentRow[] = recentEnquiries.map((e) => ({
+    ...e,
+    totalRevenue: enquiryTotalRevenue(e),
+  }));
 
-  const recentColumns: AdminTableColumn<Enquiry>[] = [
+  const recentColumns: AdminTableColumn<RecentRow>[] = [
     { header: "Car Model", accessor: "car_model", cell: (r) => r.car_model ?? "—" },
-    { header: "Part Name", accessor: "part_name", cell: (r) => r.part_name ?? "—" },
     {
       header: "Customer",
-      accessor: "customer",
+      accessor: "customer_name",
       cell: (r) => r.customer_name ?? r.customer ?? "—",
     },
     {
@@ -123,11 +127,11 @@ const enquiries = (data ?? []) as Enquiry[];
       ),
     },
     {
-      header: "Price",
-      accessor: "price",
+      header: "Revenue",
+      accessor: "totalRevenue",
       align: "right",
       cell: (r) =>
-        r.price != null ? formatCurrency(r.price) : "—",
+        r.totalRevenue > 0 ? formatCurrency(r.totalRevenue) : "—",
     },
     {
       header: "Created",
@@ -214,7 +218,7 @@ const enquiries = (data ?? []) as Enquiry[];
         </Card>
         <Card padding="md" className="rounded-xl shadow-sm">
           <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground mb-4">
-            Top parts (confirmed)
+            Top parts (confirmed / closed)
           </h2>
           <ul className="space-y-2">
             {topParts.length === 0 ? (
@@ -282,7 +286,7 @@ const enquiries = (data ?? []) as Enquiry[];
         <h2 className="text-sm font-medium uppercase tracking-wide text-muted-foreground mb-4">
           Recent enquiries
         </h2>
-        <AdminTable columns={recentColumns} data={recentEnquiries} />
+        <AdminTable columns={recentColumns} data={recentRows} />
       </section>
     </PageContainer>
   );
