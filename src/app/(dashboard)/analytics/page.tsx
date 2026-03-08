@@ -1,29 +1,15 @@
-import { createClient } from "@/src/lib/supabase/server";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import PageContainer from "@/src/components/layout/PageContainer";
 import PageHeader from "@/src/components/layout/PageHeader";
-import EnquiriesChart from "@/src/components/analytics/EnquiriesChart";
 import AnalyticsDateRange from "@/src/components/analytics/AnalyticsDateRange";
-
-type Row = { id: string; created_at: string };
+import AnalyticsOverviewCharts from "@/src/components/analytics/AnalyticsOverviewCharts";
 
 function toLocalDateString(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
-}
-
-function generateDateRange(start: Date, end: Date): string[] {
-  const result: string[] = [];
-  const s = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-  const e = new Date(end.getFullYear(), end.getMonth(), end.getDate());
-  const current = new Date(s);
-  while (current.getTime() <= e.getTime()) {
-    result.push(toLocalDateString(current));
-    current.setDate(current.getDate() + 1);
-  }
-  return result;
 }
 
 function parseRange(
@@ -57,7 +43,7 @@ function parseRange(
     start.setHours(0, 0, 0, 0);
     const end = new Date(today);
     end.setHours(23, 59, 59, 999);
-    return { start, end, range: "30" };
+    return { start, end, range: "30", startStr: toLocalDateString(start), endStr: toLocalDateString(end) };
   }
 
   const start = new Date(today);
@@ -65,7 +51,7 @@ function parseRange(
   start.setHours(0, 0, 0, 0);
   const end = new Date(today);
   end.setHours(23, 59, 59, 999);
-  return { start, end, range: "7" };
+  return { start, end, range: "7", startStr: toLocalDateString(start), endStr: toLocalDateString(end) };
 }
 
 export default async function AnalyticsPage({
@@ -73,53 +59,66 @@ export default async function AnalyticsPage({
 }: {
   searchParams: Promise<{ range?: string; start?: string; end?: string }>;
 }) {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
-
   const params = await searchParams;
-  const { start: rangeStart, end: rangeEnd, range, startStr, endStr } = parseRange(params);
+  const { range, startStr, endStr } = parseRange(params);
 
-  const { data } = await supabase
-    .from("enquiries")
-    .select("id, created_at")
-    .order("created_at", { ascending: true });
-
-  const rows = (data ?? []) as Row[];
-  const startString = toLocalDateString(rangeStart);
-  const endString = toLocalDateString(rangeEnd);
-  const filtered = rows.filter((row) => {
-    const rowDateStr = toLocalDateString(new Date(row.created_at));
-    return rowDateStr >= startString && rowDateStr <= endString;
-  });
-
-  const countByDate = new Map<string, number>();
-  for (const row of filtered) {
-    const key = toLocalDateString(new Date(row.created_at));
-    countByDate.set(key, (countByDate.get(key) ?? 0) + 1);
+  if (!startStr || !endStr) {
+    redirect("/analytics");
   }
-  const dateRange = generateDateRange(rangeStart, rangeEnd);
-  const chartData = dateRange.map((date) => ({
-    date,
-    count: countByDate.get(date) ?? 0,
-  }));
+
+  const headersList = await headers();
+  const host = headersList.get("host") ?? "localhost:3000";
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "http";
+  const base = `${protocol}://${host}`;
+  const cookie = headersList.get("cookie");
+  const res = await fetch(
+    `${base}/api/analytics/overview?start=${encodeURIComponent(startStr)}&end=${encodeURIComponent(endStr)}`,
+    {
+      cache: "no-store",
+      headers: cookie ? { cookie } : undefined,
+    }
+  );
+
+  if (!res.ok) {
+    if (res.status === 401) redirect("/login");
+    return (
+      <PageContainer>
+        <PageHeader
+          title="Analytics"
+          description="Overview and key metrics."
+          actions={
+            <AnalyticsDateRange currentRange={range} start={startStr} end={endStr} />
+          }
+        />
+        <div className="rounded-xl border border-slate-200 bg-white p-8 text-center text-slate-600">
+          Failed to load analytics. Try another date range.
+        </div>
+      </PageContainer>
+    );
+  }
+
+  const data = (await res.json()) as {
+    revenueOverTime: { date: string; revenue: number; profit: number }[];
+    enquiriesOverTime: { date: string; enquiries: number }[];
+    statusFunnel: Record<string, number>;
+    topProfitableParts: { part_name: string; profit: number }[];
+  };
 
   return (
     <PageContainer>
       <PageHeader
         title="Analytics"
-        description="Enquiries over time."
+        description="Overview and key metrics."
         actions={
-          <AnalyticsDateRange
-            currentRange={range}
-            start={startStr}
-            end={endStr}
-          />
+          <AnalyticsDateRange currentRange={range} start={startStr} end={endStr} />
         }
       />
-      <EnquiriesChart data={chartData} />
+      <AnalyticsOverviewCharts
+        revenueOverTime={data.revenueOverTime ?? []}
+        enquiriesOverTime={data.enquiriesOverTime ?? []}
+        statusFunnel={data.statusFunnel ?? {}}
+        topProfitableParts={data.topProfitableParts ?? []}
+      />
     </PageContainer>
   );
 }
