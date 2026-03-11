@@ -54,6 +54,13 @@ export async function POST(
       { status: 400 }
     );
   }
+  const oe_number = raw.oe_number;
+  if (oe_number !== undefined && oe_number !== null && typeof oe_number !== "string") {
+    return NextResponse.json(
+      { error: "oe_number must be a string or null" },
+      { status: 400 }
+    );
+  }
 
   const { data, error } = await supabase
     .from("enquiry_parts")
@@ -66,6 +73,7 @@ export async function POST(
         supplier_available_date == null || supplier_available_date === ""
           ? null
           : String(supplier_available_date),
+      oe_number: oe_number == null || oe_number === "" ? null : String(oe_number),
     })
     .select()
     .single();

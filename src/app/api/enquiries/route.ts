@@ -45,6 +45,7 @@ type PartInput = {
   price?: number | null;
   cost_price?: number | null;
   supplier_available_date?: string | null;
+  oe_number?: string | null;
 };
 
 export async function POST(request: NextRequest) {
@@ -95,7 +96,7 @@ export async function POST(request: NextRequest) {
   const enquiryId = (enquiry as { id: string }).id;
   const partsList = Array.isArray(parts) && parts.length > 0
     ? parts
-    : [{ part_name: null, price: null, cost_price: null, supplier_available_date: null }];
+    : [{ part_name: null, price: null, cost_price: null, supplier_available_date: null, oe_number: null }];
 
   const partRows = partsList.map((p: PartInput) => ({
     enquiry_id: enquiryId,
@@ -103,6 +104,7 @@ export async function POST(request: NextRequest) {
     price: p.price ?? null,
     cost_price: p.cost_price ?? null,
     supplier_available_date: p.supplier_available_date ?? null,
+    oe_number: p.oe_number == null || p.oe_number === "" ? null : String(p.oe_number),
   }));
 
   const { data: insertedParts, error: partsError } = await supabase
