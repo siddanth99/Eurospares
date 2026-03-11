@@ -15,11 +15,12 @@ export async function PATCH(
   }
 
   const body = await request.json();
-  const { part_name, price, cost_price, supplier_available_date } = body as {
+  const { part_name, price, cost_price, supplier_available_date, oe_number } = body as {
     part_name?: string | null;
     price?: number | null;
     cost_price?: number | null;
     supplier_available_date?: string | null;
+    oe_number?: string | null;
   };
 
   const updates: {
@@ -27,11 +28,13 @@ export async function PATCH(
     price?: number | null;
     cost_price?: number | null;
     supplier_available_date?: string | null;
+    oe_number?: string | null;
   } = {};
   if (part_name !== undefined) updates.part_name = part_name ?? null;
   if (price !== undefined) updates.price = price;
   if (cost_price !== undefined) updates.cost_price = cost_price;
   if (supplier_available_date !== undefined) updates.supplier_available_date = supplier_available_date ?? null;
+  if (oe_number !== undefined) updates.oe_number = oe_number == null || oe_number === "" ? null : String(oe_number);
 
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });

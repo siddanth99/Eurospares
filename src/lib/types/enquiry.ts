@@ -5,6 +5,7 @@ export type EnquiryPart = {
   price: number | null;
   cost_price: number | null;
   supplier_available_date: string | null;
+  oe_number: string | null;
   created_at: string;
 };
 

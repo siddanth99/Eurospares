@@ -8,6 +8,7 @@ import PageHeader from "@/src/components/layout/PageHeader";
 import { Button } from "@/src/components/ui/button";
 import { Badge } from "@/src/components/ui/badge";
 import { Card } from "@/src/components/ui/card";
+import QuickEnquiryModal from "@/src/components/enquiries/QuickEnquiryModal";
 
 const STATUS_OPTIONS = [
   { value: "new", label: "New" },
@@ -29,6 +30,7 @@ type FormPart = {
   price: string;
   cost_price: string;
   supplier_available_date: string;
+  oe_number: string;
 };
 
 export default function EnquiriesPage() {
@@ -43,7 +45,7 @@ export default function EnquiriesPage() {
     customer_phone: "",
     notes: "",
     requested_date: "",
-    parts: [{ part_name: "", price: "", cost_price: "", supplier_available_date: "" }] as FormPart[],
+    parts: [{ part_name: "", price: "", cost_price: "", supplier_available_date: "", oe_number: "" }] as FormPart[],
   });
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -57,6 +59,8 @@ export default function EnquiriesPage() {
   const [menuPosition, setMenuPosition] = useState<{ top: number; left: number } | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [editingEnquiry, setEditingEnquiry] = useState<EnquiryWithParts | null>(null);
+  const [quickEnquiryModalOpen, setQuickEnquiryModalOpen] = useState(false);
+  const [oeHistorySuggestions, setOeHistorySuggestions] = useState<Record<number, string[]>>({});
   const menuContainerRef = useRef<HTMLDivElement | null>(null);
   const menuPortalRef = useRef<HTMLDivElement | null>(null);
 
@@ -148,8 +152,9 @@ export default function EnquiriesPage() {
               supplier_available_date: p.supplier_available_date
                 ? String(p.supplier_available_date).slice(0, 10)
                 : "",
+              oe_number: p.oe_number ?? "",
             }))
-          : [{ part_name: "", price: "", cost_price: "", supplier_available_date: "" }],
+          : [{ part_name: "", price: "", cost_price: "", supplier_available_date: "", oe_number: "" }],
     });
   }, [modalOpen, editingEnquiry?.id]);
 
@@ -196,7 +201,7 @@ export default function EnquiriesPage() {
       customer_phone: "",
       notes: "",
       requested_date: "",
-      parts: [{ part_name: "", price: "", cost_price: "", supplier_available_date: "" }],
+      parts: [{ part_name: "", price: "", cost_price: "", supplier_available_date: "", oe_number: "" }],
     });
     setModalOpen(true);
   }
@@ -206,7 +211,7 @@ export default function EnquiriesPage() {
       ...f,
       parts: [
         ...f.parts,
-        { part_name: "", price: "", cost_price: "", supplier_available_date: "" },
+        { part_name: "", price: "", cost_price: "", supplier_available_date: "", oe_number: "" },
       ],
     }));
   }
@@ -226,12 +231,28 @@ export default function EnquiriesPage() {
     }));
   }
 
+  async function fetchHistoricalSuggestions(index: number, partName: string) {
+    if (!partName.trim()) return;
+    const res = await fetch("/api/parts/history-suggest", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ part_name: partName.trim() }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setOeHistorySuggestions((prev) => ({
+      ...prev,
+      [index]: Array.isArray(data.suggestions) ? data.suggestions : [],
+    }));
+  }
+
   function parsePartNums(p: FormPart) {
     return {
       part_name: p.part_name.trim() || null,
       price: p.price.trim() ? parseFloat(p.price.replace(/,/g, "")) : null,
       cost_price: p.cost_price.trim() ? parseFloat(p.cost_price.replace(/,/g, "")) : null,
       supplier_available_date: p.supplier_available_date.trim() || null,
+      oe_number: p.oe_number.trim() || null,
     };
   }
 
@@ -436,10 +457,54 @@ export default function EnquiriesPage() {
         title="Enquiries"
         description="Manage customer enquiries and pricing."
         actions={
-          <Button onClick={openModal} type="button">
-            + New Enquiry
-          </Button>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setQuickEnquiryModalOpen(true)}
+            >
+              + Quick Enquiry
+            </Button>
+            <Button onClick={openModal} type="button">
+              + New Enquiry
+            </Button>
+          </div>
         }
+      />
+
+      <QuickEnquiryModal
+        open={quickEnquiryModalOpen}
+        onClose={() => setQuickEnquiryModalOpen(false)}
+        onExtract={(data) => {
+          console.log("PARENT_RECEIVED_EXTRACT", data);
+          const mappedParts = data.parts?.length
+            ? data.parts.map((p) => ({
+                part_name: p.part_name,
+                oe_number: p.oe_number ?? "",
+                price: "",
+                cost_price: "",
+                supplier_available_date: "",
+              }))
+            : [
+                {
+                  part_name: "",
+                  oe_number: "",
+                  price: "",
+                  cost_price: "",
+                  supplier_available_date: "",
+                },
+              ];
+          console.log("FORM_PARTS_AFTER_MAPPING", mappedParts);
+          setForm((prev) => ({
+            ...prev,
+            car_model: data.car_model ?? "",
+            parts: mappedParts,
+          }));
+          setQuickEnquiryModalOpen(false);
+          setEditingEnquiry(null);
+          setFormError(null);
+          setModalOpen(true);
+        }}
       />
 
       {modalOpen && (
@@ -545,6 +610,32 @@ export default function EnquiriesPage() {
                         placeholder="Part name"
                         className="w-full h-9 px-2 text-sm rounded border border-input bg-background text-foreground"
                       />
+                      <div>
+                        <label className="block text-xs text-muted-foreground mb-1">OE Number</label>
+                        <input
+                          type="text"
+                          value={part.oe_number}
+                          onChange={(e) => updatePart(index, "oe_number", e.target.value)}
+                          onFocus={() => fetchHistoricalSuggestions(index, part.part_name)}
+                          placeholder="OE number"
+                          className="w-full h-9 px-2 text-sm rounded border border-input bg-background text-foreground"
+                        />
+                        {oeHistorySuggestions[index]?.length > 0 && (
+                          <div className="text-xs text-muted-foreground space-y-1 mt-1">
+                            <div>Suggestions from history:</div>
+                            {oeHistorySuggestions[index].map((oe) => (
+                              <button
+                                key={oe}
+                                type="button"
+                                className="block text-blue-600 hover:underline"
+                                onClick={() => updatePart(index, "oe_number", oe)}
+                              >
+                                {oe}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                       <input
                         type="date"
                         value={part.supplier_available_date}
@@ -815,6 +906,7 @@ export default function EnquiriesPage() {
                             <thead>
                               <tr className="border-b border-border bg-muted/30">
                                 <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Part Name</th>
+                                <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">OE Number</th>
                                 <th className="px-4 py-2 text-left text-xs font-medium text-muted-foreground">Supplier date</th>
                                 <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Price</th>
                                 <th className="px-4 py-2 text-right text-xs font-medium text-muted-foreground">Cost</th>
@@ -826,6 +918,7 @@ export default function EnquiriesPage() {
                               {(row.parts ?? []).map((p) => (
                                 <tr key={p.id} className="border-b border-border last:border-b-0">
                                   <td className="px-4 py-2">{p.part_name ?? "—"}</td>
+                                  <td className="px-4 py-2">{p.oe_number ?? "—"}</td>
                                   <td className="px-4 py-2">
                                     {p.supplier_available_date
                                       ? formatDate(p.supplier_available_date)
