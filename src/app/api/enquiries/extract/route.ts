@@ -37,13 +37,20 @@ VIN / chassis_number rules:
 - A VIN is typically a 17-character alphanumeric string, e.g. "SAJAC2652DNV57822".
 - If a chassis_number or VIN is clearly present, prioritize it for vehicle identification.
 
-Vehicle model rules:
-- NEVER guess or hallucinate the vehicle model.
-- ONLY set car_model if the model name is explicitly written in the text or clearly visible on the document.
-- If a chassis_number or VIN is present but the model is not explicitly written, set car_model to "" (empty string).
+Vehicle identification rules:
+- If a VIN / chassis_number exists, always extract it.
+- If the manufacturer can be determined from the VIN prefix (first 3 characters), set car_model to the manufacturer name ONLY (not the specific model).
+  Examples:
+  - SAJ → Jaguar
+  - WBA → BMW
+  - WAU → Audi
+  - SAL → Land Rover
+- NEVER infer or hallucinate a specific vehicle model (e.g. XF, Aria, etc.) from the VIN alone.
+- ONLY set a more specific car_model if the model name is explicitly written in the text or clearly visible on the document.
+- If the manufacturer cannot be determined from the VIN / chassis_number, set car_model to "" (empty string).
 
 Rules:
-- Detect car make and model ONLY when explicitly mentioned.
+- Detect car make and model using the above rules.
 - customer_name = person name if present, otherwise null.
 - customer_phone = phone number if present, otherwise null.
 - chassis_number = VIN or chassis number if present, otherwise null.
@@ -233,21 +240,19 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = parseExtractPayload(raw);
-  console.log("EXTRACT_API_RESPONSE", payload);
+  const responseBody = {
+    car_model: payload.car_model,
+    customer_name: payload.customer_name,
+    customer_phone: payload.customer_phone,
+    chassis_number: payload.chassis_number,
+    parts: payload.parts.map((p) => ({
+      part_name: p.part_name,
+      oe_number: p.oe_number,
+    })),
+  };
+  console.log("EXTRACT_API_RESPONSE", responseBody);
 
-  const res = NextResponse.json(
-    {
-      car_model: payload.car_model,
-      customer_name: payload.customer_name,
-      customer_phone: payload.customer_phone,
-      chassis_number: payload.chassis_number,
-      parts: payload.parts.map((p) => ({
-        part_name: p.part_name,
-        oe_number: p.oe_number,
-      })),
-    },
-    { status: 200 }
-  );
+  const res = NextResponse.json(responseBody, { status: 200 });
   cookiesToSet.forEach(({ name, value, options }) => {
     res.cookies.set(name, value, (options ?? {}) as { path?: string; maxAge?: number; httpOnly?: boolean; secure?: boolean; sameSite?: "lax" | "strict" | "none" });
   });
