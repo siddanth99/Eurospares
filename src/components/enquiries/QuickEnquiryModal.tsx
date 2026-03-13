@@ -35,6 +35,14 @@ export default function QuickEnquiryModal({ open, onClose, onExtract }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [open, onClose]);
 
+  useEffect(() => {
+    if (!open) {
+      setMessage("");
+      setImages([]);
+      setExtractError(null);
+    }
+  }, [open]);
+
   if (!open) return null;
 
   async function handleExtract() {
@@ -80,6 +88,8 @@ export default function QuickEnquiryModal({ open, onClose, onExtract }: Props) {
       };
       console.log("MODAL_FORWARD_TO_PARENT", forward);
       onExtract(forward);
+      setMessage("");
+      setImages([]);
     } catch {
       setExtractError("Extraction failed.");
     } finally {

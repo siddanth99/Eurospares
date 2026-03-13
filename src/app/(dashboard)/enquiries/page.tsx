@@ -580,6 +580,16 @@ export default function EnquiriesPage() {
                 />
               </div>
               <div>
+                <label className="block text-xs font-medium text-foreground mb-1.5">Chassis Number</label>
+                <input
+                  type="text"
+                  value={form.chassis_number}
+                  onChange={(e) => setForm((f) => ({ ...f, chassis_number: e.target.value }))}
+                  className="w-full h-10 px-3 text-sm rounded-lg border border-input bg-background text-foreground"
+                  placeholder="SAJAC2652DNV57822"
+                />
+              </div>
+              <div>
                 <label className="block text-xs font-medium text-foreground mb-1.5">Notes</label>
                 <textarea
                   value={form.notes}
