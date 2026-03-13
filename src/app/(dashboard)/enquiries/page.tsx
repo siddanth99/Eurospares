@@ -33,20 +33,33 @@ type FormPart = {
   oe_number: string;
 };
 
+function createEmptyForm() {
+  return {
+    car_model: "",
+    customer_name: "",
+    customer_phone: "",
+    chassis_number: "",
+    notes: "",
+    requested_date: "",
+    parts: [
+      {
+        part_name: "",
+        oe_number: "",
+        price: "",
+        cost_price: "",
+        supplier_available_date: "",
+      },
+    ] as FormPart[],
+  };
+}
+
 export default function EnquiriesPage() {
   const [enquiries, setEnquiries] = useState<EnquiryWithParts[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitLoading, setSubmitLoading] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-  const [form, setForm] = useState({
-    car_model: "",
-    customer_name: "",
-    customer_phone: "",
-    notes: "",
-    requested_date: "",
-    parts: [{ part_name: "", price: "", cost_price: "", supplier_available_date: "", oe_number: "" }] as FormPart[],
-  });
+  const [form, setForm] = useState(createEmptyForm());
   const [editingStatusId, setEditingStatusId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [editingPricePartId, setEditingPricePartId] = useState<string | null>(null);
@@ -138,6 +151,7 @@ export default function EnquiriesPage() {
       car_model: editingEnquiry.car_model ?? "",
       customer_name: editingEnquiry.customer_name ?? editingEnquiry.customer ?? "",
       customer_phone: editingEnquiry.customer_phone ?? "",
+      chassis_number: "",
       notes: editingEnquiry.notes ?? "",
       requested_date: editingEnquiry.requested_date
         ? String(editingEnquiry.requested_date).slice(0, 10)
@@ -195,14 +209,7 @@ export default function EnquiriesPage() {
   function openModal() {
     setEditingEnquiry(null);
     setFormError(null);
-    setForm({
-      car_model: "",
-      customer_name: "",
-      customer_phone: "",
-      notes: "",
-      requested_date: "",
-      parts: [{ part_name: "", price: "", cost_price: "", supplier_available_date: "", oe_number: "" }],
-    });
+    setForm(createEmptyForm());
     setModalOpen(true);
   }
 
@@ -479,7 +486,7 @@ export default function EnquiriesPage() {
           console.log("PARENT_RECEIVED_EXTRACT", data);
           const mappedParts = data.parts?.length
             ? data.parts.map((p) => ({
-                part_name: p.part_name,
+                part_name: p.part_name ?? "",
                 oe_number: p.oe_number ?? "",
                 price: "",
                 cost_price: "",
@@ -495,11 +502,14 @@ export default function EnquiriesPage() {
                 },
               ];
           console.log("FORM_PARTS_AFTER_MAPPING", mappedParts);
-          setForm((prev) => ({
-            ...prev,
+          setForm({
+            ...createEmptyForm(),
             car_model: data.car_model ?? "",
+            customer_name: data.customer_name ?? "",
+            customer_phone: data.customer_phone ?? "",
+            chassis_number: data.chassis_number ?? "",
             parts: mappedParts,
-          }));
+          });
           setQuickEnquiryModalOpen(false);
           setEditingEnquiry(null);
           setFormError(null);

@@ -8,27 +8,96 @@ Return JSON:
 
 {
   "car_model": string,
+  "customer_name": string | null,
+  "customer_phone": string | null,
+  "chassis_number": string | null,
   "parts": [{ "part_name": string, "oe_number": string | null }]
 }
 
+Extract the following fields if present in the message or images:
+- car_model
+- customer_name
+- customer_phone
+- chassis_number
+- parts
+
+If an uploaded image contains a vehicle RC card, registration certificate, or vehicle document, also extract:
+- registration_number
+- chassis_number
+- engine_number
+- owner_name
+
+RC card fields may appear with labels such as:
+- "Chassis Number"
+- "Engine / Motor Number"
+- "Owner Name"
+- "Regn. Number"
+
+VIN / chassis_number rules:
+- A VIN is typically a 17-character alphanumeric string, e.g. "SAJAC2652DNV57822".
+- If a chassis_number or VIN is clearly present, prioritize it for vehicle identification.
+
+Vehicle model rules:
+- NEVER guess or hallucinate the vehicle model.
+- ONLY set car_model if the model name is explicitly written in the text or clearly visible on the document.
+- If a chassis_number or VIN is present but the model is not explicitly written, set car_model to "" (empty string).
+
 Rules:
-- Detect car make and model.
+- Detect car make and model ONLY when explicitly mentioned.
+- customer_name = person name if present, otherwise null.
+- customer_phone = phone number if present, otherwise null.
+- chassis_number = VIN or chassis number if present, otherwise null.
 - Extract part names.
 - Multiple parts allowed.
 - If no car model detected return empty string.
 - For each extracted part also suggest ONE likely OEM part number if possible. If unknown return null.
-- Return JSON only.`;
+- Return ONLY valid JSON (no comments or extra text).`;
 
 type ExtractedPart = { part_name: string; oe_number: string | null };
-type ExtractedPayload = { car_model: string; parts: ExtractedPart[] };
+type ExtractedPayload = {
+  car_model: string;
+  customer_name: string | null;
+  customer_phone: string | null;
+  chassis_number: string | null;
+  parts: ExtractedPart[];
+};
+
+function normalizePhoneNumber(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+
+  const digits = raw.replace(/[^\d]/g, "");
+
+  if (digits.length === 10) return digits;
+
+  if (digits.length === 12 && digits.startsWith("91")) {
+    return digits.slice(2);
+  }
+
+  return digits.length >= 10 ? digits.slice(-10) : null;
+}
 
 function parseExtractPayload(raw: unknown): ExtractedPayload {
   if (raw == null || typeof raw !== "object") {
-    return { car_model: "", parts: [] };
+    return { car_model: "", customer_name: null, customer_phone: null, chassis_number: null, parts: [] };
   }
   const obj = raw as Record<string, unknown>;
-  const car_model =
-    typeof obj.car_model === "string" ? obj.car_model : "";
+  const car_model = typeof obj.car_model === "string" ? obj.car_model : "";
+  const customer_nameRaw = obj.customer_name;
+  const customer_phoneRaw = obj.customer_phone;
+  const chassis_numberRaw = obj.chassis_number;
+  const customer_name =
+    typeof customer_nameRaw === "string" && customer_nameRaw.trim()
+      ? customer_nameRaw.trim()
+      : null;
+  const customer_phone = normalizePhoneNumber(
+    typeof customer_phoneRaw === "string" && customer_phoneRaw.trim()
+      ? customer_phoneRaw.trim()
+      : null
+  );
+  const chassis_number =
+    typeof chassis_numberRaw === "string" && chassis_numberRaw.trim()
+      ? chassis_numberRaw.trim()
+      : null;
   let parts: ExtractedPart[] = [];
   if (Array.isArray(obj.parts)) {
     parts = obj.parts
@@ -44,7 +113,7 @@ function parseExtractPayload(raw: unknown): ExtractedPayload {
       })
       .filter((p) => p.part_name.length > 0);
   }
-  return { car_model, parts };
+  return { car_model, customer_name, customer_phone, chassis_number, parts };
 }
 
 export async function POST(request: NextRequest) {
@@ -169,6 +238,9 @@ export async function POST(request: NextRequest) {
   const res = NextResponse.json(
     {
       car_model: payload.car_model,
+      customer_name: payload.customer_name,
+      customer_phone: payload.customer_phone,
+      chassis_number: payload.chassis_number,
       parts: payload.parts.map((p) => ({
         part_name: p.part_name,
         oe_number: p.oe_number,
